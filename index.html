@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="description" content="TinyML BLE Monitor - Real-time bearing fault detection monitor">
+
+    <title>TinyML BLE Monitor</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192.svg">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="app-title">TENG TinyML Monitor</h1>
+                <p class="node-info">Node #<span id="nodeId">01</span> – <span id="nodeName">Bearing A</span></p>
+            </div>
+            <div class="header-right">
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-dot disconnected"></span>
+                    <span class="status-text">Disconnected</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Fault Display Card -->
+            <div class="card fault-card">
+                <div class="fault-info">
+                    <h2 class="fault-label" id="faultLabel">--</h2>
+                    <div class="fault-details">
+                        <p>Confidence: <span id="confidenceValue">--</span></p>
+                        <p>Seq: <span id="seqValue">--</span></p>
+                        <p>Last inference: <span id="lastInferenceTime">--</span></p>
+                    </div>
+                </div>
+                <div class="confidence-ring-container">
+                    <svg class="confidence-ring" viewBox="0 0 120 120">
+                        <circle class="ring-bg" cx="60" cy="60" r="52" />
+                        <circle class="ring-progress" id="ringProgress" cx="60" cy="60" r="52" stroke-dasharray="326.73"
+                            stroke-dashoffset="326.73" />
+                    </svg>
+                    <div class="confidence-text">
+                        <span id="confidencePercent">--%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-row">
+                <!-- Stream Health -->
+                <div class="card stats-card">
+                    <h3 class="card-title">Stream Health</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Packets/min:</span>
+                        <span class="stat-value" id="packetsPerMin">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Missing packets:</span>
+                        <span class="stat-value" id="missingPackets">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Uptime:</span>
+                        <span class="stat-value" id="uptime">00:00</span>
+                    </div>
+                </div>
+
+                <!-- Class Statistics -->
+                <div class="card stats-card">
+                    <h3 class="card-title">Class Statistics</h3>
+                    <div class="class-stat">
+                        <span class="class-label">Normal</span>
+                        <div class="class-bar">
+                            <div class="bar-fill normal" id="barNormal"></div>
+                        </div>
+                    </div>
+                    <div class="class-stat">
+                        <span class="class-label">Ball</span>
+                        <div class="class-bar">
+                            <div class="bar-fill ball" id="barBall"></div>
+                        </div>
+                    </div>
+                    <div class="class-stat">
+                        <span class="class-label">Inner</span>
+                        <div class="class-bar">
+                            <div class="bar-fill inner" id="barInner"></div>
+                        </div>
+                    </div>
+                    <div class="class-stat">
+                        <span class="class-label">Outer</span>
+                        <div class="class-bar">
+                            <div class="bar-fill outer" id="barOuter"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signal History -->
+            <div class="card history-card">
+                <h3 class="card-title">Signal History</h3>
+                <div class="history-container" id="historyContainer">
+                    <!-- Signal bars will be added dynamically -->
+                </div>
+                <div class="history-legend">
+                    <span class="legend-item"><span class="legend-dot normal"></span> Normal</span>
+                    <span class="legend-item"><span class="legend-dot fault"></span> Fault</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-left">
+                <span class="device-badge">Battery-free · TinyML on STM32</span>
+            </div>
+            <div class="footer-right">
+                <button class="btn btn-primary" id="connectBtn">
+                    <span class="btn-icon">📡</span>
+                    Connect
+                </button>
+                <button class="btn btn-secondary" id="demoBtn">
+                    Demo
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="ble.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('[SW] Registered'))
+                .catch(err => console.log('[SW] Registration failed:', err));
+        }
+    </script>
+</body>
+
+</html>
