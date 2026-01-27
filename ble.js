@@ -7,27 +7,27 @@ const BLE = {
     // Device configuration
     DEVICE_NAME: 'IoT_ML_Sensor',
     MANUFACTURER_ID: 0xFFFF,
-    
+
     // Standard UUIDs (can be customized if device has specific UUIDs)
     SERVICE_UUID: '0000fff0-0000-1000-8000-00805f9b34fb',
     CHAR_UUID: '0000fff1-0000-1000-8000-00805f9b34fb',
-    
+
     // State
     device: null,
     characteristic: null,
     isConnected: false,
-    
+
     // Callbacks
     onDataReceived: null,
     onConnectionChange: null,
-    
+
     /**
      * Check if Web Bluetooth is supported
      */
     isSupported() {
         return 'bluetooth' in navigator;
     },
-    
+
     /**
      * Connect to the BLE device using GATT
      */
@@ -35,10 +35,10 @@ const BLE = {
         if (!this.isSupported()) {
             throw new Error('Web Bluetooth is not supported in this browser. Please use Chrome on Android or Bluefy on iOS.');
         }
-        
+
         try {
             console.log('[BLE] Requesting device...');
-            
+
             // Request device with name filter
             this.device = await navigator.bluetooth.requestDevice({
                 filters: [
@@ -47,18 +47,18 @@ const BLE = {
                 ],
                 optionalServices: [this.SERVICE_UUID]
             });
-            
+
             console.log('[BLE] Device found:', this.device.name);
-            
+
             // Set up disconnect handler
             this.device.addEventListener('gattserverdisconnected', () => {
                 this.handleDisconnect();
             });
-            
+
             // Connect to GATT server
             console.log('[BLE] Connecting to GATT server...');
             const server = await this.device.gatt.connect();
-            
+
             // Get primary service
             console.log('[BLE] Getting service...');
             let service;
@@ -74,7 +74,7 @@ const BLE = {
                     throw new Error('No services found on device');
                 }
             }
-            
+
             // Get characteristic
             console.log('[BLE] Getting characteristic...');
             let characteristic;
@@ -94,24 +94,24 @@ const BLE = {
                     throw new Error('No notify characteristic found');
                 }
             }
-            
+
             this.characteristic = characteristic;
-            
+
             // Subscribe to notifications
             console.log('[BLE] Subscribing to notifications...');
             await characteristic.startNotifications();
             characteristic.addEventListener('characteristicvaluechanged', (event) => {
                 this.handleData(event.target.value);
             });
-            
+
             this.isConnected = true;
             if (this.onConnectionChange) {
                 this.onConnectionChange(true, this.device.name);
             }
-            
+
             console.log('[BLE] Connected successfully!');
             return true;
-            
+
         } catch (error) {
             console.error('[BLE] Connection error:', error);
             this.isConnected = false;
@@ -121,7 +121,7 @@ const BLE = {
             throw error;
         }
     },
-    
+
     /**
      * Disconnect from device
      */
@@ -131,7 +131,7 @@ const BLE = {
         }
         this.handleDisconnect();
     },
-    
+
     /**
      * Handle disconnect event
      */
@@ -144,54 +144,77 @@ const BLE = {
             this.onConnectionChange(false, null);
         }
     },
-    
+
     /**
      * Handle incoming data from characteristic notification
      */
     handleData(dataView) {
-        const buffer = dataView.buffer;
-        
+        // Debug: log raw data as hex
+        const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+        const hexStr = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
+        console.log('[BLE] Raw data (' + bytes.length + ' bytes):', hexStr);
+
         // Check minimum length
-        if (buffer.byteLength < 13) {
-            console.warn('[BLE] Received short packet:', buffer.byteLength, 'bytes');
-            return;
+        if (bytes.length < 13) {
+            console.warn('[BLE] Received short packet:', bytes.length, 'bytes');
+            // Still try to process if we have some data
+            if (bytes.length < 5) {
+                return;
+            }
         }
-        
-        // Validate header
-        const header1 = dataView.getUint8(0);
-        const header2 = dataView.getUint8(1);
-        
+
+        // Create a new DataView with correct offset
+        const view = new DataView(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+
+        // Read header bytes
+        const header1 = view.getUint8(0);
+        const header2 = view.getUint8(1);
+
+        console.log('[BLE] Header:', header1.toString(16), header2.toString(16));
+
+        // Relaxed header validation - log warning but continue
         if (header1 !== 0xA5 || header2 !== 0x5A) {
-            console.warn('[BLE] Invalid header:', header1.toString(16), header2.toString(16));
-            return;
+            console.warn('[BLE] Unexpected header, trying to parse anyway...');
         }
-        
+
         // Parse ml_result_t structure
-        const result = {
-            version: dataView.getUint8(2),
-            sequence: dataView.getUint8(3),
-            label: dataView.getUint8(4),
-            confidence: dataView.getInt16(5, true) / 32768.0,  // Q15 to float, little-endian
-            timestamp: dataView.getUint32(7, true),            // little-endian
-            crc: dataView.getUint16(11, true)                  // little-endian
-        };
-        
-        // Validate label
-        if (result.label > 11) {
-            console.warn('[BLE] Invalid label:', result.label);
+        let result;
+        try {
+            const rawProb = bytes.length >= 7 ? view.getInt16(5, true) : 0;
+
+            result = {
+                version: view.getUint8(2),
+                sequence: view.getUint8(3),
+                label: view.getUint8(4),
+                rawProbQ15: rawProb,
+                confidence: rawProb / 32768.0,  // Q15 to float, little-endian
+                timestamp: bytes.length >= 11 ? view.getUint32(7, true) : 0,
+                crc: bytes.length >= 13 ? view.getUint16(11, true) : 0
+            };
+
+            console.log('[BLE] Parsed values - label:', result.label,
+                'rawProb:', result.rawProbQ15,
+                'confidence:', result.confidence.toFixed(4));
+        } catch (e) {
+            console.error('[BLE] Parse error:', e);
             return;
         }
-        
-        // Convert confidence to percentage
-        result.confidencePercent = Math.round(result.confidence * 100);
-        
-        console.log('[BLE] Parsed result:', result);
-        
+
+        // Relaxed label validation
+        if (result.label > 11) {
+            console.warn('[BLE] Unusual label:', result.label, '- displaying anyway');
+        }
+
+        // Convert confidence to percentage (handle negative values)
+        result.confidencePercent = Math.max(0, Math.min(100, Math.round(Math.abs(result.confidence) * 100)));
+
+        console.log('[BLE] Final result:', result);
+
         if (this.onDataReceived) {
             this.onDataReceived(result);
         }
     },
-    
+
     /**
      * CRC-16 calculation (CCITT polynomial)
      */
