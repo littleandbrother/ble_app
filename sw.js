@@ -3,7 +3,7 @@
  * Provides offline support
  */
 
-const CACHE_NAME = 'ble-monitor-v2';  // Updated to force refresh
+const CACHE_NAME = 'ble-monitor-v3';  // VERSION 3
 const ASSETS = [
     './',
     './index.html',

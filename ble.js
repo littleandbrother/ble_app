@@ -1,7 +1,10 @@
 /**
  * Web Bluetooth BLE Module
  * Handles connection to IoT_ML_Sensor device
+ * VERSION 3 - Fixed packet parsing with padding byte
  */
+
+console.log('[BLE] Module loaded - VERSION 3 (14-byte packet with padding)');
 
 const BLE = {
     // Device configuration
