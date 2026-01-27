@@ -154,11 +154,11 @@ const BLE = {
         const hexStr = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
         console.log('[BLE] Raw data (' + bytes.length + ' bytes):', hexStr);
 
-        // Check minimum length
-        if (bytes.length < 13) {
-            console.warn('[BLE] Received short packet:', bytes.length, 'bytes');
+        // Check minimum length - packet is 14 bytes with padding
+        if (bytes.length < 14) {
+            console.warn('[BLE] Received short packet:', bytes.length, 'bytes (expected 14)');
             // Still try to process if we have some data
-            if (bytes.length < 5) {
+            if (bytes.length < 8) {
                 return;
             }
         }
@@ -177,22 +177,25 @@ const BLE = {
             console.warn('[BLE] Unexpected header, trying to parse anyway...');
         }
 
-        // Parse ml_result_t structure
+        // Parse ml_result_t structure with CORRECT OFFSETS (includes padding byte at offset 5)
+        // Offset: 0-1=Header, 2=Version, 3=Sequence, 4=Label, 5=Padding, 6-7=ProbQ15, 8-11=Timestamp, 12-13=CRC
         let result;
         try {
-            const rawProb = bytes.length >= 7 ? view.getInt16(5, true) : 0;
+            const rawProb = bytes.length >= 8 ? view.getInt16(6, true) : 0;  // Offset 6, not 5!
 
             result = {
                 version: view.getUint8(2),
                 sequence: view.getUint8(3),
                 label: view.getUint8(4),
+                padding: view.getUint8(5),  // Padding byte
                 rawProbQ15: rawProb,
                 confidence: rawProb / 32768.0,  // Q15 to float, little-endian
-                timestamp: bytes.length >= 11 ? view.getUint32(7, true) : 0,
-                crc: bytes.length >= 13 ? view.getUint16(11, true) : 0
+                timestamp: bytes.length >= 12 ? view.getUint32(8, true) : 0,  // Offset 8, not 7!
+                crc: bytes.length >= 14 ? view.getUint16(12, true) : 0        // Offset 12, not 11!
             };
 
             console.log('[BLE] Parsed values - label:', result.label,
+                'padding:', result.padding,
                 'rawProb:', result.rawProbQ15,
                 'confidence:', result.confidence.toFixed(4));
         } catch (e) {
