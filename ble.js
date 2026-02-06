@@ -368,10 +368,10 @@ const BLE = {
         }
 
         // === DEMO MODE: Override with fixed values ===
-        result.label = 1;  // BALL FAULT
-        result.confidence = 0.80 + Math.random() * 0.05;  // 80-85%
+        result.label = 2;  // OUTER RACE FAULT (外圈故障)
+        result.confidence = 0.85 + Math.random() * 0.05;  // 80-85%
         result.confidencePercent = Math.round(result.confidence * 100);
-        console.log('[BLE] Demo override - label: BALL FAULT, confidence:', result.confidencePercent + '%');
+        console.log('[BLE] Demo override - label: OUTER RACE FAULT, confidence:', result.confidencePercent + '%');
 
         console.log('[BLE] Final result:', result);
 
