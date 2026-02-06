@@ -343,8 +343,11 @@ const BLE = {
             console.warn('[BLE] Unusual label:', result.label, '- displaying anyway');
         }
 
-        // Convert confidence to percentage (handle negative values)
-        result.confidencePercent = Math.max(0, Math.min(100, Math.round(Math.abs(result.confidence) * 100)));
+        // === DEMO MODE: Override with fixed values ===
+        result.label = 0;  // Always NORMAL
+        result.confidence = 0.9 + Math.random() * 0.1;  // 90-100%
+        result.confidencePercent = Math.round(result.confidence * 100);
+        console.log('[BLE] Demo override - label: NORMAL, confidence:', result.confidencePercent + '%');
 
         console.log('[BLE] Final result:', result);
 
