@@ -3,7 +3,7 @@
  * Provides offline support
  */
 
-const CACHE_NAME = 'ble-monitor-v5';  // VERSION 5 with 1s connection monitor
+const CACHE_NAME = 'ble-monitor-v6';  // VERSION 6 with Clear button
 const ASSETS = [
     './',
     './index.html',
