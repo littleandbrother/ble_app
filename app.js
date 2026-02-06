@@ -80,6 +80,7 @@ const App = {
             statusDot: document.querySelector('.status-dot'),
             statusText: document.querySelector('.status-text'),
             connectBtn: document.getElementById('connectBtn'),
+            clearBtn: document.getElementById('clearBtn'),
             demoBtn: document.getElementById('demoBtn'),
 
             // Fault display
@@ -117,6 +118,11 @@ const App = {
             } else {
                 this.connect();
             }
+        });
+
+        // Clear data button
+        this.elements.clearBtn.addEventListener('click', () => {
+            this.clearData();
         });
 
         // Demo button
@@ -340,6 +346,42 @@ const App = {
             history: []
         };
         this.initHistory();
+    },
+
+    /**
+     * Clear all data but keep BLE connection for auto-reconnect
+     */
+    clearData() {
+        console.log('[App] Clearing all data...');
+
+        // Reset stats
+        this.resetStats();
+
+        // Reset UI displays
+        this.elements.faultLabel.textContent = '--';
+        this.elements.faultLabel.classList.remove('normal');
+        this.elements.confidenceValue.textContent = '--';
+        this.elements.seqValue.textContent = '--';
+        this.elements.lastInferenceTime.textContent = '--';
+        this.elements.confidencePercent.textContent = '--%';
+
+        // Reset ring progress
+        const circumference = 2 * Math.PI * 52;
+        this.elements.ringProgress.style.strokeDashoffset = circumference;
+        this.elements.ringProgress.classList.remove('normal');
+
+        // Reset class bars
+        this.elements.barNormal.style.width = '0%';
+        this.elements.barBall.style.width = '0%';
+        this.elements.barInner.style.width = '0%';
+        this.elements.barOuter.style.width = '0%';
+
+        // Reset stats display
+        this.elements.packetsPerMin.textContent = '0';
+        this.elements.missingPackets.textContent = '0';
+        this.elements.uptime.textContent = '00:00';
+
+        console.log('[App] Data cleared. BLE connection preserved for auto-reconnect.');
     },
 
     /**
