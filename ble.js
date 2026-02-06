@@ -227,13 +227,27 @@ const BLE = {
      * Check connection status and attempt auto-reconnect if needed
      */
     async checkConnection() {
+        // Prevent overlapping reconnect attempts
+        if (this.isReconnecting) {
+            return;
+        }
+
+        // Log current state
+        const hasDevice = !!this.device;
+        const hasGatt = hasDevice && !!this.device.gatt;
+        const isConnected = hasGatt && this.device.gatt.connected;
+
+        console.log('[BLE] Connection check - device:', hasDevice, 'gatt:', hasGatt, 'connected:', isConnected);
+
         // Check if device is still connected
-        if (this.device && this.device.gatt && !this.device.gatt.connected) {
+        if (hasDevice && hasGatt && !isConnected) {
             console.log('[BLE] Connection lost detected by monitor');
 
-            if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+            if (this.autoReconnect) {
                 this.reconnectAttempts++;
-                console.log('[BLE] Auto-reconnect attempt', this.reconnectAttempts, '/', this.maxReconnectAttempts);
+                console.log('[BLE] Auto-reconnect attempt', this.reconnectAttempts);
+
+                this.isReconnecting = true;
 
                 try {
                     await this._connectAndSetup();
@@ -241,13 +255,10 @@ const BLE = {
                     this.reconnectAttempts = 0;
                 } catch (e) {
                     console.log('[BLE] Auto-reconnect failed:', e.message);
-
-                    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                        console.log('[BLE] Max reconnect attempts reached, giving up');
-                        this.stopConnectionMonitor();
-                        this.handleDisconnect();
-                    }
+                    // Will try again on next interval
                 }
+
+                this.isReconnecting = false;
             }
         }
     },
