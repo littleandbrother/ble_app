@@ -113,8 +113,6 @@ const App = {
         // Connect button
         this.elements.connectBtn.addEventListener('click', () => {
             if (BLE.isConnected) {
-                // Immediately update UI before BLE disconnect completes
-                this.updateConnectionUI(false, null);
                 BLE.disconnect();
             } else {
                 this.connect();

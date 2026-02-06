@@ -1,10 +1,10 @@
 /**
  * Web Bluetooth BLE Module
  * Handles connection to IoT_ML_Sensor device
- * VERSION 5 - Added signal loss detection
+ * VERSION 5 - Added 1s connection monitoring
  */
 
-console.log('[BLE] Module loaded - VERSION 5 (with signal loss detection)');
+console.log('[BLE] Module loaded - VERSION 5 (with 1s connection monitor)');
 
 const BLE = {
     // Device configuration
@@ -15,15 +15,16 @@ const BLE = {
     SERVICE_UUID: '0000fff0-0000-1000-8000-00805f9b34fb',
     CHAR_UUID: '0000fff1-0000-1000-8000-00805f9b34fb',
 
-    // Watchdog timeout (ms) - trigger disconnect if no data received
-    WATCHDOG_TIMEOUT: 3000,  // 3 seconds
-
     // State
     device: null,
     characteristic: null,
     isConnected: false,
-    watchdogTimer: null,
-    lastDataTime: 0,
+
+    // Connection monitor
+    connectionCheckInterval: null,
+    autoReconnect: true,  // Enable/disable auto-reconnect
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 5,
 
     // Callbacks
     onDataReceived: null,
@@ -186,8 +187,10 @@ const BLE = {
         });
 
         this.isConnected = true;
-        this.lastDataTime = Date.now();
-        this.startWatchdog();
+        this.reconnectAttempts = 0;  // Reset on successful connection
+
+        // Start connection monitor
+        this.startConnectionMonitor();
 
         if (this.onConnectionChange) {
             this.onConnectionChange(true, this.device.name);
@@ -197,28 +200,55 @@ const BLE = {
     },
 
     /**
-     * Start watchdog timer to detect signal loss
+     * Start connection monitoring (check every 1 second)
      */
-    startWatchdog() {
-        this.stopWatchdog();
-        this.watchdogTimer = setInterval(() => {
-            if (!this.isConnected) return;
+    startConnectionMonitor() {
+        // Clear any existing interval
+        this.stopConnectionMonitor();
 
-            const timeSinceData = Date.now() - this.lastDataTime;
-            if (timeSinceData > this.WATCHDOG_TIMEOUT) {
-                console.log('[BLE] Watchdog: No data for', timeSinceData, 'ms, assuming disconnected');
-                this.handleDisconnect();
-            }
-        }, 1000);  // Check every second
+        console.log('[BLE] Starting connection monitor (1s interval)');
+
+        this.connectionCheckInterval = setInterval(() => {
+            this.checkConnection();
+        }, 1000);  // Check every 1 second
     },
 
     /**
-     * Stop watchdog timer
+     * Stop connection monitoring
      */
-    stopWatchdog() {
-        if (this.watchdogTimer) {
-            clearInterval(this.watchdogTimer);
-            this.watchdogTimer = null;
+    stopConnectionMonitor() {
+        if (this.connectionCheckInterval) {
+            clearInterval(this.connectionCheckInterval);
+            this.connectionCheckInterval = null;
+        }
+    },
+
+    /**
+     * Check connection status and attempt auto-reconnect if needed
+     */
+    async checkConnection() {
+        // Check if device is still connected
+        if (this.device && this.device.gatt && !this.device.gatt.connected) {
+            console.log('[BLE] Connection lost detected by monitor');
+
+            if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                console.log('[BLE] Auto-reconnect attempt', this.reconnectAttempts, '/', this.maxReconnectAttempts);
+
+                try {
+                    await this._connectAndSetup();
+                    console.log('[BLE] Auto-reconnect successful!');
+                    this.reconnectAttempts = 0;
+                } catch (e) {
+                    console.log('[BLE] Auto-reconnect failed:', e.message);
+
+                    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                        console.log('[BLE] Max reconnect attempts reached, giving up');
+                        this.stopConnectionMonitor();
+                        this.handleDisconnect();
+                    }
+                }
+            }
         }
     },
 
@@ -226,10 +256,15 @@ const BLE = {
      * Disconnect from device
      */
     disconnect() {
+        this.autoReconnect = false;  // Disable auto-reconnect on manual disconnect
+        this.stopConnectionMonitor();
+
         if (this.device && this.device.gatt.connected) {
             this.device.gatt.disconnect();
         }
         this.handleDisconnect();
+
+        this.autoReconnect = true;  // Re-enable for next connection
     },
 
     /**
@@ -237,10 +272,9 @@ const BLE = {
      */
     handleDisconnect() {
         console.log('[BLE] Disconnected');
-        this.stopWatchdog();
         this.isConnected = false;
-        this.device = null;
         this.characteristic = null;
+        // Note: Keep device reference for potential reconnect
         if (this.onConnectionChange) {
             this.onConnectionChange(false, null);
         }
@@ -250,9 +284,6 @@ const BLE = {
      * Handle incoming data from characteristic notification
      */
     handleData(dataView) {
-        // Reset watchdog timer
-        this.lastDataTime = Date.now();
-
         // Debug: log raw data as hex
         const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
         const hexStr = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');
