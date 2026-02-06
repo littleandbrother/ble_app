@@ -1,10 +1,10 @@
 /**
  * Web Bluetooth BLE Module
  * Handles connection to IoT_ML_Sensor device
- * VERSION 4 - Added auto-reconnect feature
+ * VERSION 5 - Added signal loss detection
  */
 
-console.log('[BLE] Module loaded - VERSION 4 (with auto-reconnect)');
+console.log('[BLE] Module loaded - VERSION 5 (with signal loss detection)');
 
 const BLE = {
     // Device configuration
@@ -15,10 +15,15 @@ const BLE = {
     SERVICE_UUID: '0000fff0-0000-1000-8000-00805f9b34fb',
     CHAR_UUID: '0000fff1-0000-1000-8000-00805f9b34fb',
 
+    // Watchdog timeout (ms) - trigger disconnect if no data received
+    WATCHDOG_TIMEOUT: 3000,  // 3 seconds
+
     // State
     device: null,
     characteristic: null,
     isConnected: false,
+    watchdogTimer: null,
+    lastDataTime: 0,
 
     // Callbacks
     onDataReceived: null,
@@ -181,11 +186,40 @@ const BLE = {
         });
 
         this.isConnected = true;
+        this.lastDataTime = Date.now();
+        this.startWatchdog();
+
         if (this.onConnectionChange) {
             this.onConnectionChange(true, this.device.name);
         }
 
         console.log('[BLE] Connected successfully!');
+    },
+
+    /**
+     * Start watchdog timer to detect signal loss
+     */
+    startWatchdog() {
+        this.stopWatchdog();
+        this.watchdogTimer = setInterval(() => {
+            if (!this.isConnected) return;
+
+            const timeSinceData = Date.now() - this.lastDataTime;
+            if (timeSinceData > this.WATCHDOG_TIMEOUT) {
+                console.log('[BLE] Watchdog: No data for', timeSinceData, 'ms, assuming disconnected');
+                this.handleDisconnect();
+            }
+        }, 1000);  // Check every second
+    },
+
+    /**
+     * Stop watchdog timer
+     */
+    stopWatchdog() {
+        if (this.watchdogTimer) {
+            clearInterval(this.watchdogTimer);
+            this.watchdogTimer = null;
+        }
     },
 
     /**
@@ -203,6 +237,7 @@ const BLE = {
      */
     handleDisconnect() {
         console.log('[BLE] Disconnected');
+        this.stopWatchdog();
         this.isConnected = false;
         this.device = null;
         this.characteristic = null;
@@ -215,6 +250,9 @@ const BLE = {
      * Handle incoming data from characteristic notification
      */
     handleData(dataView) {
+        // Reset watchdog timer
+        this.lastDataTime = Date.now();
+
         // Debug: log raw data as hex
         const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
         const hexStr = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ');

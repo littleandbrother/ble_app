@@ -3,7 +3,7 @@
  * Provides offline support
  */
 
-const CACHE_NAME = 'ble-monitor-v5';  // VERSION 5
+const CACHE_NAME = 'ble-monitor-v6';  // VERSION 6 with signal loss detection
 const ASSETS = [
     './',
     './index.html',
