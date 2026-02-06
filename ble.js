@@ -22,7 +22,7 @@ const BLE = {
 
     // Connection monitor
     connectionCheckInterval: null,
-    autoReconnect: true,  // Enable/disable auto-reconnect
+    autoReconnect: false,  // Disabled - only monitor, no auto-reconnect
     reconnectAttempts: 0,
     maxReconnectAttempts: 5,
 
