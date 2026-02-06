@@ -40,7 +40,7 @@ const App = {
     /**
      * Initialize the application
      */
-    init() {
+    async init() {
         this.cacheElements();
         this.bindEvents();
         this.initHistory();
@@ -49,9 +49,25 @@ const App = {
         // Check BLE support
         if (!BLE.isSupported()) {
             this.showStatus('Web Bluetooth not supported', false);
+        } else {
+            // Try to find paired device for auto-reconnect
+            this.checkForPairedDevice();
         }
 
         console.log('[App] Initialized');
+    },
+
+    /**
+     * Check for paired device and enable reconnect
+     */
+    async checkForPairedDevice() {
+        const device = await BLE.getPairedDevice();
+        if (device) {
+            console.log('[App] Found paired device, auto-reconnect available');
+            // Update button to show reconnect option
+            this.elements.connectBtn.innerHTML = '<span class="btn-icon">🔄</span> Reconnect';
+            this.elements.connectBtn.title = 'Click to reconnect to ' + device.name;
+        }
     },
 
     /**
@@ -114,14 +130,20 @@ const App = {
     },
 
     /**
-     * Connect to BLE device
+     * Connect to BLE device (tries reconnect first, then new pairing)
      */
     async connect() {
         try {
             this.elements.connectBtn.disabled = true;
             this.elements.connectBtn.innerHTML = '<span class="btn-icon">⏳</span> Connecting...';
 
-            await BLE.connect();
+            // Try reconnect first (no user interaction needed)
+            const reconnected = await BLE.reconnect();
+
+            if (!reconnected) {
+                // No paired device, need user to select
+                await BLE.connect();
+            }
 
             // Reset stats on new connection
             this.resetStats();

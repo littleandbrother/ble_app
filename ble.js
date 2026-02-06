@@ -1,10 +1,10 @@
 /**
  * Web Bluetooth BLE Module
  * Handles connection to IoT_ML_Sensor device
- * VERSION 3 - Fixed packet parsing with padding byte
+ * VERSION 4 - Added auto-reconnect feature
  */
 
-console.log('[BLE] Module loaded - VERSION 3 (14-byte packet with padding)');
+console.log('[BLE] Module loaded - VERSION 4 (with auto-reconnect)');
 
 const BLE = {
     // Device configuration
@@ -32,7 +32,62 @@ const BLE = {
     },
 
     /**
-     * Connect to the BLE device using GATT
+     * Check if there are paired devices that can be reconnected
+     * Returns the first matching device or null
+     */
+    async getPairedDevice() {
+        if (!this.isSupported() || !navigator.bluetooth.getDevices) {
+            console.log('[BLE] getDevices not supported');
+            return null;
+        }
+
+        try {
+            const devices = await navigator.bluetooth.getDevices();
+            console.log('[BLE] Found', devices.length, 'paired devices');
+
+            for (const device of devices) {
+                if (device.name === this.DEVICE_NAME || device.name?.startsWith('IoT_ML')) {
+                    console.log('[BLE] Found remembered device:', device.name);
+                    return device;
+                }
+            }
+        } catch (e) {
+            console.log('[BLE] Cannot get paired devices:', e.message);
+        }
+        return null;
+    },
+
+    /**
+     * Try to reconnect to a previously paired device (no user interaction needed)
+     */
+    async reconnect() {
+        const device = await this.getPairedDevice();
+        if (!device) {
+            console.log('[BLE] No paired device found, need to pair first');
+            return false;
+        }
+
+        try {
+            console.log('[BLE] Reconnecting to:', device.name);
+            this.device = device;
+
+            // Set up disconnect handler
+            this.device.addEventListener('gattserverdisconnected', () => {
+                this.handleDisconnect();
+            });
+
+            // Connect and setup (reuse common code)
+            await this._connectAndSetup();
+            return true;
+
+        } catch (error) {
+            console.error('[BLE] Reconnect failed:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Connect to the BLE device using GATT (requires user interaction)
      */
     async connect() {
         if (!this.isSupported()) {
@@ -58,61 +113,8 @@ const BLE = {
                 this.handleDisconnect();
             });
 
-            // Connect to GATT server
-            console.log('[BLE] Connecting to GATT server...');
-            const server = await this.device.gatt.connect();
-
-            // Get primary service
-            console.log('[BLE] Getting service...');
-            let service;
-            try {
-                service = await server.getPrimaryService(this.SERVICE_UUID);
-            } catch (e) {
-                // Try to get any available service
-                const services = await server.getPrimaryServices();
-                if (services.length > 0) {
-                    service = services[0];
-                    console.log('[BLE] Using first available service:', service.uuid);
-                } else {
-                    throw new Error('No services found on device');
-                }
-            }
-
-            // Get characteristic
-            console.log('[BLE] Getting characteristic...');
-            let characteristic;
-            try {
-                characteristic = await service.getCharacteristic(this.CHAR_UUID);
-            } catch (e) {
-                // Try to get any notify characteristic
-                const chars = await service.getCharacteristics();
-                for (const char of chars) {
-                    if (char.properties.notify) {
-                        characteristic = char;
-                        console.log('[BLE] Using notify characteristic:', char.uuid);
-                        break;
-                    }
-                }
-                if (!characteristic) {
-                    throw new Error('No notify characteristic found');
-                }
-            }
-
-            this.characteristic = characteristic;
-
-            // Subscribe to notifications
-            console.log('[BLE] Subscribing to notifications...');
-            await characteristic.startNotifications();
-            characteristic.addEventListener('characteristicvaluechanged', (event) => {
-                this.handleData(event.target.value);
-            });
-
-            this.isConnected = true;
-            if (this.onConnectionChange) {
-                this.onConnectionChange(true, this.device.name);
-            }
-
-            console.log('[BLE] Connected successfully!');
+            // Connect and setup
+            await this._connectAndSetup();
             return true;
 
         } catch (error) {
@@ -123,6 +125,67 @@ const BLE = {
             }
             throw error;
         }
+    },
+
+    /**
+     * Internal: Connect to GATT and setup notifications
+     */
+    async _connectAndSetup() {
+        // Connect to GATT server
+        console.log('[BLE] Connecting to GATT server...');
+        const server = await this.device.gatt.connect();
+
+        // Get primary service
+        console.log('[BLE] Getting service...');
+        let service;
+        try {
+            service = await server.getPrimaryService(this.SERVICE_UUID);
+        } catch (e) {
+            // Try to get any available service
+            const services = await server.getPrimaryServices();
+            if (services.length > 0) {
+                service = services[0];
+                console.log('[BLE] Using first available service:', service.uuid);
+            } else {
+                throw new Error('No services found on device');
+            }
+        }
+
+        // Get characteristic
+        console.log('[BLE] Getting characteristic...');
+        let characteristic;
+        try {
+            characteristic = await service.getCharacteristic(this.CHAR_UUID);
+        } catch (e) {
+            // Try to get any notify characteristic
+            const chars = await service.getCharacteristics();
+            for (const char of chars) {
+                if (char.properties.notify) {
+                    characteristic = char;
+                    console.log('[BLE] Using notify characteristic:', char.uuid);
+                    break;
+                }
+            }
+            if (!characteristic) {
+                throw new Error('No notify characteristic found');
+            }
+        }
+
+        this.characteristic = characteristic;
+
+        // Subscribe to notifications
+        console.log('[BLE] Subscribing to notifications...');
+        await characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', (event) => {
+            this.handleData(event.target.value);
+        });
+
+        this.isConnected = true;
+        if (this.onConnectionChange) {
+            this.onConnectionChange(true, this.device.name);
+        }
+
+        console.log('[BLE] Connected successfully!');
     },
 
     /**
