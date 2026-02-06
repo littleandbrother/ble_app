@@ -264,31 +264,44 @@ const BLE = {
     },
 
     /**
-     * Disconnect from device
+     * Disconnect from device (manual disconnect - stops auto-reconnect)
      */
     disconnect() {
+        console.log('[BLE] Manual disconnect requested');
         this.autoReconnect = false;  // Disable auto-reconnect on manual disconnect
         this.stopConnectionMonitor();
 
         if (this.device && this.device.gatt.connected) {
             this.device.gatt.disconnect();
         }
-        this.handleDisconnect();
 
-        this.autoReconnect = true;  // Re-enable for next connection
-    },
-
-    /**
-     * Handle disconnect event
-     */
-    handleDisconnect() {
-        console.log('[BLE] Disconnected');
         this.isConnected = false;
         this.characteristic = null;
-        // Note: Keep device reference for potential reconnect
+        this.device = null;  // Clear device on manual disconnect
+
         if (this.onConnectionChange) {
             this.onConnectionChange(false, null);
         }
+
+        this.autoReconnect = true;  // Re-enable for next connection
+        console.log('[BLE] Manual disconnect complete');
+    },
+
+    /**
+     * Handle disconnect event from BLE stack (keeps auto-reconnect running)
+     */
+    handleDisconnect() {
+        console.log('[BLE] Disconnected (from BLE event)');
+        this.isConnected = false;
+        this.characteristic = null;
+        // Keep device reference for auto-reconnect!
+        // Keep connectionCheckInterval running for auto-reconnect!
+
+        if (this.onConnectionChange) {
+            this.onConnectionChange(false, null);
+        }
+
+        console.log('[BLE] Device reference kept, auto-reconnect will continue');
     },
 
     /**
