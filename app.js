@@ -36,6 +36,7 @@ const App = {
     // Demo mode
     isDemo: false,
     demoInterval: null,
+    demoConnectTimeout: null,
 
     /**
      * Initialize the application
@@ -79,6 +80,7 @@ const App = {
             connectionStatus: document.getElementById('connectionStatus'),
             statusDot: document.querySelector('.status-dot'),
             statusText: document.querySelector('.status-text'),
+            connectedFlag: document.getElementById('connectedFlag'),
             connectBtn: document.getElementById('connectBtn'),
             clearBtn: document.getElementById('clearBtn'),
             demoBtn: document.getElementById('demoBtn'),
@@ -113,6 +115,11 @@ const App = {
     bindEvents() {
         // Connect button
         this.elements.connectBtn.addEventListener('click', () => {
+            if (this.isDemo) {
+                this.stopDemo();
+                return;
+            }
+
             if (BLE.isConnected) {
                 BLE.disconnect();
             } else {
@@ -167,21 +174,40 @@ const App = {
      * Update connection UI
      */
     updateConnectionUI(connected, deviceName) {
-        const { statusDot, statusText, connectBtn } = this.elements;
+        const { statusDot, statusText, connectBtn, connectedFlag } = this.elements;
+
+        statusDot.classList.remove('connecting');
+        statusText.classList.remove('connecting');
 
         if (connected) {
             statusDot.classList.remove('disconnected');
             statusDot.classList.add('connected');
-            statusText.textContent = 'Connected';
+            statusText.textContent = `Connected${deviceName ? ` (${deviceName})` : ''}`;
             connectBtn.innerHTML = '<span class="btn-icon">🔌</span> Disconnect';
             connectBtn.classList.add('connected');
+            connectedFlag.classList.add('show');
         } else {
             statusDot.classList.remove('connected');
             statusDot.classList.add('disconnected');
             statusText.textContent = 'Disconnected';
             connectBtn.innerHTML = '<span class="btn-icon">📡</span> Connect';
             connectBtn.classList.remove('connected');
+            connectedFlag.classList.remove('show');
         }
+    },
+
+    /**
+     * Show connecting animation and state
+     */
+    showConnectingUI(deviceName = 'BLE Device') {
+        const { statusDot, statusText, connectBtn, connectedFlag } = this.elements;
+        statusDot.classList.remove('connected', 'disconnected');
+        statusDot.classList.add('connecting');
+        statusText.classList.add('connecting');
+        statusText.textContent = `Connecting to ${deviceName}...`;
+        connectBtn.innerHTML = '<span class="btn-icon">⏳</span> Connecting...';
+        connectBtn.classList.remove('connected');
+        connectedFlag.classList.remove('show');
     },
 
     /**
@@ -406,27 +432,35 @@ const App = {
         this.isDemo = true;
         this.elements.demoBtn.textContent = 'Stop Demo';
         this.resetStats();
-        this.updateConnectionUI(true, 'Demo Device');
+        this.showConnectingUI('Demo BLE');
 
         let seq = 0;
 
-        this.demoInterval = setInterval(() => {
-            // Generate random demo data
-            const labels = [0, 0, 0, 1, 2, 3];  // Weighted towards Normal
-            const label = labels[Math.floor(Math.random() * labels.length)];
-            const confidence = 0.8 + Math.random() * 0.19;  // 80-99%
+        this.demoConnectTimeout = setTimeout(() => {
+            if (!this.isDemo) {
+                return;
+            }
 
-            const demoData = {
-                version: 1,
-                sequence: seq++ % 256,
-                label: label,
-                confidence: confidence,
-                confidencePercent: Math.round(confidence * 100),
-                timestamp: Date.now()
-            };
+            this.updateConnectionUI(true, 'Demo BLE');
 
-            this.handleData(demoData);
-        }, 500);  // 2 packets per second
+            this.demoInterval = setInterval(() => {
+                // Demo mode outputs NORMAL only
+                const label = 0;
+
+                const confidence = 0.8 + Math.random() * 0.19;  // 80-99%
+
+                const demoData = {
+                    version: 1,
+                    sequence: seq++ % 256,
+                    label: label,
+                    confidence: confidence,
+                    confidencePercent: Math.round(confidence * 100),
+                    timestamp: Date.now()
+                };
+
+                this.handleData(demoData);
+            }, 2000);  // 1 packet every 2 seconds
+        }, 1200);
 
         console.log('[App] Demo mode started');
     },
@@ -441,6 +475,11 @@ const App = {
         if (this.demoInterval) {
             clearInterval(this.demoInterval);
             this.demoInterval = null;
+        }
+
+        if (this.demoConnectTimeout) {
+            clearTimeout(this.demoConnectTimeout);
+            this.demoConnectTimeout = null;
         }
 
         this.updateConnectionUI(false, null);

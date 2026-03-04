@@ -13,11 +13,11 @@
     --accent-blue: #007aff;
     --accent-orange: #ff9500;
     --border-color: #e5e5e7;
-    
+
     /* Shadows */
     --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
     --shadow-button: 0 2px 8px rgba(0, 122, 255, 0.3);
-    
+
     /* Sizing */
     --border-radius: 16px;
     --border-radius-sm: 8px;
@@ -29,13 +29,16 @@
 }
 
 /* Reset & Base */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
-html, body {
+html,
+body {
     height: 100%;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 14px;
@@ -103,9 +106,57 @@ html, body {
     background: var(--text-secondary);
 }
 
+.status-dot.connecting {
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--accent-blue);
+    border-top-color: transparent;
+    border-radius: 50%;
+    background: transparent;
+    animation: spin 0.9s linear infinite;
+}
+
+.status-text.connecting {
+    color: var(--accent-blue);
+    animation: pulse 1s infinite;
+}
+
+.connected-flag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: #ffffff;
+    background: var(--accent-green);
+    border-radius: 999px;
+    padding: 1px 6px;
+    display: none;
+}
+
+.connected-flag.show {
+    display: inline-flex;
+    align-items: center;
+}
+
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Cards */
@@ -256,10 +307,21 @@ html, body {
     width: 0%;
 }
 
-.bar-fill.normal { background: var(--accent-green); }
-.bar-fill.ball { background: var(--accent-red); }
-.bar-fill.inner { background: var(--accent-red); }
-.bar-fill.outer { background: var(--accent-orange); }
+.bar-fill.normal {
+    background: var(--accent-green);
+}
+
+.bar-fill.ball {
+    background: var(--accent-red);
+}
+
+.bar-fill.inner {
+    background: var(--accent-red);
+}
+
+.bar-fill.outer {
+    background: var(--accent-orange);
+}
 
 /* History Card */
 .history-card {
@@ -308,8 +370,13 @@ html, body {
     border-radius: 2px;
 }
 
-.legend-dot.normal { background: var(--accent-green); }
-.legend-dot.fault { background: var(--accent-red); }
+.legend-dot.normal {
+    background: var(--accent-green);
+}
+
+.legend-dot.fault {
+    background: var(--accent-red);
+}
 
 /* Footer */
 .footer {
@@ -392,11 +459,11 @@ html, body {
     .app-container {
         padding: var(--spacing-sm);
     }
-    
+
     .fault-label {
         font-size: 20px;
     }
-    
+
     .confidence-ring-container {
         width: 80px;
         height: 80px;
